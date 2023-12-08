@@ -142,6 +142,16 @@ def test_verbose(server):
     ]
 
 
+def test_hide_headers(server):
+    url = str(server.url)
+    runner = CliRunner()
+    result = runner.invoke(httpx.main, [url, "--hide-headers"])
+    assert result.exit_code == 0
+    assert remove_date_header(splitlines(result.output)) == [
+        "Hello, world!",
+    ]
+
+
 def test_auth(server):
     url = str(server.url)
     runner = CliRunner()
@@ -176,6 +186,25 @@ def test_download(server):
         assert os.path.exists("index.txt")
         with open("index.txt", "r") as input_file:
             assert input_file.read() == "Hello, world!"
+
+
+def test_download_hide_headers(server):
+    url = str(server.url)
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            httpx.main, [url, "--hide-headers", "--download", "index.txt"]
+        )
+        assert os.path.exists("index.txt")
+        with open("index.txt", "r") as input_file:
+            file_data = input_file.read()
+            assert file_data == "Hello, world!"
+            file_len = len(file_data)
+        assert result.exit_code == 0
+        assert remove_date_header(splitlines(result.output)) == [
+            "",
+            f"Downloading index.txt   0% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ {file_len}/0 bytes ?",
+        ]
 
 
 def test_errors():

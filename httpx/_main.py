@@ -90,7 +90,14 @@ def print_help() -> None:
         "--download [cyan]FILE",
         "Save the response content as a file, rather than displaying it.",
     )
-
+    table.add_row(
+        "--show-headers",
+        "Show HTTP headers in output (default).",
+    )
+    table.add_row(
+        "--hide-headers",
+        "Don't show HTTP headers in output.",
+    )
     table.add_row("-v, --verbose", "Verbose output. Show request as well as response.")
     table.add_row("--help", "Show this message and exit.")
     console.print(table)
@@ -206,7 +213,10 @@ def format_certificate(cert: _PeerCertRetDictType) -> str:  # pragma: no cover
 
 
 def trace(
-    name: str, info: typing.Mapping[str, typing.Any], verbose: bool = False
+    name: str,
+    info: typing.Mapping[str, typing.Any],
+    verbose: bool = False,
+    show_headers: bool = False,
 ) -> None:
     console = rich.console.Console()
     if name == "connection.connect_tcp.started" and verbose:
@@ -234,10 +244,12 @@ def trace(
     elif name == "http2.send_request_headers.started" and verbose:  # pragma: no cover
         request = info["request"]
         print_request_headers(request, http2=True)
-    elif name == "http11.receive_response_headers.complete":
+    elif name == "http11.receive_response_headers.complete" and show_headers:
         http_version, status, reason_phrase, headers = info["return_value"]
         print_response_headers(http_version, status, reason_phrase, headers)
-    elif name == "http2.receive_response_headers.complete":  # pragma: no cover
+    elif (
+        name == "http2.receive_response_headers.complete" and show_headers
+    ):  # pragma: no cover
         status, headers = info["return_value"]
         http_version = b"HTTP/2"
         reason_phrase = None
@@ -438,6 +450,12 @@ def handle_help(
     help="Verbose. Show request as well as response.",
 )
 @click.option(
+    "--show-headers/--hide-headers",
+    type=bool,
+    default=True,
+    help="Show (default) or hide HTTP response headers.",
+)
+@click.option(
     "--help",
     is_flag=True,
     is_eager=True,
@@ -463,6 +481,7 @@ def main(
     http2: bool,
     download: typing.Optional[typing.BinaryIO],
     verbose: bool,
+    show_headers: bool,
 ) -> None:
     """
     An HTTP command line client.
@@ -490,7 +509,13 @@ def main(
                 cookies=dict(cookies),
                 auth=auth,
                 follow_redirects=follow_redirects,
-                extensions={"trace": functools.partial(trace, verbose=verbose)},
+                extensions={
+                    "trace": functools.partial(
+                        trace,
+                        verbose=verbose,
+                        show_headers=show_headers,
+                    )
+                },
             ) as response:
                 if download is not None:
                     download_response(response, download)
